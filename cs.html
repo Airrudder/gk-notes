@@ -144,6 +144,29 @@ body.compact .stem{margin-bottom:5px}
   h1{font-size:14.5px}
   .seg button{padding:6px 8px}
 }
+
+/* ---- 手机：筛选框默认收起，只留「筛选」按钮，不再占半屏 ---- */
+.fbtn{display:none}
+@media(max-width:720px){
+  .fbtn{display:inline-flex;align-items:center;margin-left:auto;
+    border:1px solid var(--bd);background:var(--card);color:var(--tx2);
+    border-radius:9px;padding:5px 11px;font:inherit;font-size:12.5px;
+    cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .fbtn::after{content:"\25BE";margin-left:5px;font-size:10px;opacity:.55}
+  body.fshow .fbtn::after{content:"\25B4"}
+  .fbtn.on{border-color:var(--pol);color:var(--pol);background:var(--polbg)}
+  .filters{display:none}
+  body.fshow .filters{display:flex;flex-wrap:wrap;gap:7px;align-items:center;
+    width:100%;margin-top:8px}
+  .filters input[type=search]{flex:1 1 100%;min-width:0;max-width:none}
+  header .bar{margin-top:7px}
+  .stat{font-size:11.5px}
+  .prog{margin-top:6px}
+  /* 往下滚时自动收成一条：只留标题 + 筛选 + 视图切换 */
+  body.scrolled header .stat,
+  body.scrolled header .prog{display:none}
+  body.scrolled header{padding-bottom:6px}
+}
 </style>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -182,25 +205,28 @@ body.compact .stem{margin-bottom:5px}
 <header>
   <div class="hrow">
     <h1>粉笔模考 · 政治/常识 错项挖坑点</h1>
+    <button class="fbtn" id="fToggle" type="button" aria-expanded="false" aria-controls="filters">筛选</button>
     <span class="stat" id="stat"></span>
   </div>
   <div class="bar">
     <div class="seg" id="seg">
       <button data-v="week" class="on">按周</button><button data-v="kp">按知识点</button><button data-v="kao">按考点</button>
     </div>
-    <select id="fSubj">
-      <option value="">全部科目</option>
-      <option value="政治">政治理论</option>
-      <option value="常识">常识判断</option>
-    </select>
-    <select id="fWeek"><option value="">全部周次</option></select>
-    <select id="fKp"><option value="">全部知识点</option></select>
-    <select id="fTrap"><option value="">全部坑型</option></select>
-    <input id="fQ" type="search" placeholder="搜选项 / 错因 / 法条，如 行政处罚、主要矛盾">
-    <label class="tog"><input type="checkbox" id="fCompact" checked> 精简</label>
-    <label class="tog"><input type="checkbox" id="fUnread"> 只看未看</label>
-    <label class="tog"><input type="checkbox" id="fStem"> 题干</label>
-    <label class="tog"><input type="checkbox" id="fDark"> 深色</label>
+    <div class="filters" id="filters">
+      <select id="fSubj">
+        <option value="">全部科目</option>
+        <option value="政治">政治理论</option>
+        <option value="常识">常识判断</option>
+      </select>
+      <select id="fWeek"><option value="">全部周次</option></select>
+      <select id="fKp"><option value="">全部知识点</option></select>
+      <select id="fTrap"><option value="">全部坑型</option></select>
+      <input id="fQ" type="search" placeholder="搜选项 / 错因 / 法条，如 行政处罚、主要矛盾">
+      <label class="tog"><input type="checkbox" id="fCompact" checked> 精简</label>
+      <label class="tog"><input type="checkbox" id="fUnread"> 只看未看</label>
+      <label class="tog"><input type="checkbox" id="fStem"> 题干</label>
+      <label class="tog"><input type="checkbox" id="fDark"> 深色</label>
+    </div>
   </div>
   <div class="prog"><div class="t"><i id="progBar"></i></div><span id="progTxt"></span></div>
 </header>
@@ -303,9 +329,18 @@ function render() {
   });
 
   const nErr = list.reduce((a, x) => a + x.errors.length, 0);
-  $('#stat').innerHTML = `全库 <b>${DATA.meta.papers}</b> 套 / <b>${DATA.meta.questions}</b> 题 / ` +
-    `<b>${DATA.meta.errors}</b> 条错项　当前 <b>${list.length}</b> 题 · <b>${nErr}</b> 条` +
-    (view === 'kao' ? ` · <b>${new Set(list.flatMap(x => x.errors.map(e => e.grp && e.grp.k)).filter(Boolean)).size}</b> 个考点` : '');
+  $('#stat').innerHTML = (function () {
+    const kCount = view === 'kao'
+      ? new Set(list.flatMap(x => x.errors.map(e => e.grp && e.grp.k)).filter(Boolean)).size
+      : 0;
+    if (window.innerWidth <= 720) {
+      return `<b>${list.length}</b> 题 · <b>${nErr}</b> 条` +
+        (view === 'kao' ? ` · ${kCount} 个考点` : '');
+    }
+    return `全库 <b>${DATA.meta.papers}</b> 套 / <b>${DATA.meta.questions}</b> 题 / ` +
+      `<b>${DATA.meta.errors}</b> 条错项　当前 <b>${list.length}</b> 题 · <b>${nErr}</b> 条` +
+      (view === 'kao' ? ` · <b>${kCount}</b> 个考点` : '');
+  })();
 
   if (view === 'kao') { renderKao(list, kw, trap, lk); updateProgress(); return; }
 
@@ -507,6 +542,48 @@ if (localStorage.getItem('fb_traps_dark')) { $('#fDark').checked = true; documen
 let t = null;
 $('#fQ').addEventListener('input', () => { clearTimeout(t); t = setTimeout(render, 150); });
 render();
+
+/* 手机端：筛选面板默认收起，点「筛选」展开；点列表任意处自动收起。桌面不显示这个按钮 */
+(function () {
+  const btn = document.getElementById('fToggle');
+  const box = document.getElementById('filters');
+  const list = document.getElementById('list');
+  if (!btn || !box) return;
+  const set = open => {
+    document.body.classList.toggle('fshow', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  btn.addEventListener('click', () => set(!document.body.classList.contains('fshow')));
+  if (list) list.addEventListener('click', () => {
+    if (document.body.classList.contains('fshow')) set(false);
+  });
+  const upd = () => {
+    let n = 0;
+    ['fSubj', 'fWeek', 'fKp', 'fTrap'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.value) n++;
+    });
+    if (document.getElementById('fQ').value.trim()) n++;
+    const unread = document.getElementById('fUnread');
+    if (unread && unread.checked) n++;
+    btn.classList.toggle('on', n > 0);
+    btn.textContent = n ? '筛选 ' + n : '筛选';
+  };
+  box.addEventListener('change', upd);
+  box.addEventListener('input', upd);
+  upd();
+
+  // 往下滚就把头部收窄（只在手机宽度生效）
+  let st = false;
+  window.addEventListener('scroll', () => {
+    if (st) return;
+    st = true;
+    requestAnimationFrame(() => {
+      document.body.classList.toggle('scrolled', window.scrollY > 180);
+      st = false;
+    });
+  }, { passive: true });
+})();
 </script>
 </body>
 </html>
