@@ -240,6 +240,26 @@ details .full{font-size:12.9px;color:var(--tx2);white-space:pre-wrap;line-height
   .hmeta{display:none}
   .whead h2{font-size:30px}
 }
+
+/* ---- 手机：筛选条默认收起，只留一个「筛选」按钮 ---- */
+.rankhead{display:none}
+@media(max-width:720px){
+  .mh-rank,.mh-groups{display:none}
+  .rankhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 4px}
+  .hintmini{font-size:12.5px;color:var(--tx3)}
+  .fbtn{display:inline-flex;align-items:center;border:1px solid var(--bd);
+    background:var(--card);color:var(--tx2);border-radius:9px;padding:6px 12px;
+    font:inherit;font-size:12.8px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .fbtn::after{content:"\25BE";margin-left:5px;font-size:10px;opacity:.55}
+  body.foldopen .fbtn::after{content:"\25B4"}
+  .fbtn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
+  .rankfold{display:none}
+  body.foldopen .rankfold{display:block}
+  .rankfold > .toolbar{margin-top:10px}
+  .rankfold .hint{display:block;margin:8px 2px 0}
+  .toolbar input[type=search]{flex:1 1 100%;min-width:0;max-width:100%}
+  body.scrolled header .hrow{display:none}
+}
 .note-box{background:var(--warn-bg);border:1px solid rgba(168,104,26,.25);border-radius:11px;padding:11px 14px;font-size:13px;color:var(--tx2);margin:12px 0}
 </style>
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -387,8 +407,9 @@ function qCard(q, opt){
 /* ---------------- rank ---------------- */
 const S = {src:'真题', type:'all', min:5, year:'all', topic:'all', sort:'total', onlyTrap:false, q:'', limit:300, view:'all'};
 function viewRank(){
+  document.body.classList.remove('foldopen');
   app.innerHTML = `
-  <div class="masthead">
+  <div class="masthead mh-rank">
     <p>把 ${D.meta.papers} 套有逻辑填空的真题（${D.meta.questions.toLocaleString()} 题）+ ${D.meta.papersMk} 套模考（${D.meta.questionsMk.toLocaleString()} 题）拆成「每个空位的 4 个候选词」，统计每个成语/实词<b>出现多少次、几次当选、几次陪跑<\/b>。点任意词条看它在哪些真题里出现、解析怎么说。<\/p>
     <div class="hero">
       <div class="kpi"><b>${D.meta.papersAll}<\/b><span>套有逻辑填空的卷子<\/span><\/div>
@@ -397,6 +418,11 @@ function viewRank(){
       <div class="kpi"><b>${(D.meta.tokenTotal+D.meta.tokenTotalMk).toLocaleString()}<\/b><span>个选项词次<\/span><\/div>
     <\/div>
   <\/div>
+  <div class="rankhead">
+    <button class="fbtn" id="rkToggle" type="button" aria-expanded="false">筛选<\/button>
+    <span class="hintmini" id="hintMini"><\/span>
+  <\/div>
+  <div class="rankfold">
   <div class="toolbar">
     <input type="search" id="kw" placeholder="搜词 / 释义（如 相得益彰、一脉相承）">
     <div class="seg" id="srcSeg">
@@ -417,6 +443,7 @@ function viewRank(){
     <label class="tog"><input type="checkbox" id="trap">只看从未当选<\/label>
   <\/div>
   <div class="hint" id="hint"><\/div>
+  <\/div>
   <div class="tablewrap" style="margin-top:10px">
     <table class="rank-table"><thead><tr>
       <th class="num">#<\/th><th>词条 / 释义<\/th><th class="n">出现<\/th><th class="n">当选<\/th><th class="n">陪跑<\/th><th>当选率<\/th><th class="topics">常见场景<\/th>
@@ -456,6 +483,29 @@ function viewRank(){
     $('#more').innerHTML = rows.length > S.limit
       ? `<button class="more" id="moreBtn">显示更多（还有 ${rows.length - S.limit} 个）<\/button>` : '';
     if (rows.length > S.limit) $('#moreBtn').onclick = () => { S.limit += 300; render(); };
+
+    const rk = document.getElementById('rkToggle');
+    if (rk) {
+      let n = 0;
+      if (S.src !== '真题') n++;
+      if (S.type !== 'all') n++;
+      if (S.min !== 5) n++;
+      if (S.year !== 'all') n++;
+      if (S.topic !== 'all') n++;
+      if (S.sort !== 'total') n++;
+      if (S.onlyTrap) n++;
+      if (S.q) n++;
+      rk.classList.toggle('on', n > 0);
+      rk.textContent = n ? '筛选 ' + n : '筛选';
+      const hm = document.getElementById('hintMini');
+      if (hm) hm.textContent = rows.length + ' 个词条' +
+        (S.src !== '真题' ? ' · ' + (S.src === 'all' ? '真题+模考' : S.src) : '');
+    }
+  };
+  const rkBtn = document.getElementById('rkToggle');
+  if (rkBtn) rkBtn.onclick = () => {
+    const open = document.body.classList.toggle('foldopen');
+    rkBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
   };
   $('#srcSeg').onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -480,6 +530,7 @@ function viewRank(){
   let timer;
   $('#kw').oninput = e => { clearTimeout(timer); timer = setTimeout(()=>{ S.q = e.target.value.trim(); S.limit=300; render(); }, 140); };
   $('#rows').onclick = e => {
+    document.body.classList.remove('foldopen');
     const tr = e.target.closest('tr[data-w]'); if (tr) location.hash = '#/w/' + encodeURIComponent(tr.dataset.w);
   };
   render();
@@ -590,14 +641,21 @@ function viewWord(w){
 /* ---------------- groups ---------------- */
 const GMAP = {}; (D.groups||[]).forEach(g => GMAP[g.id] = g);
 function viewGroups(sel){
+  document.body.classList.remove('foldopen');
   const cats = [...new Set((D.groups||[]).map(g => g.cat))];
   app.innerHTML = `
-  <div class="masthead"><p>把意思相近、真题里会互相替代的词放在一组：先看「怎么选」，再看「每个词怎么用」和「真题里的坑」。${(D.groups||[]).length} 组覆盖了高频词（按真题统计）；点组内词条可进单词页，展开「同场真题」才看原题。<br><b>成员标签里的 % 是真题当选率<\/b>；标「常陪跑」表示它在真题里多数/全部当干扰项——语义上虽可搭配，考试中要优先考虑更精准的词。<\/p><\/div>
+  <div class="masthead mh-groups"><p>把意思相近、真题里会互相替代的词放在一组：先看「怎么选」，再看「每个词怎么用」和「真题里的坑」。${(D.groups||[]).length} 组覆盖了高频词（按真题统计）；点组内词条可进单词页，展开「同场真题」才看原题。<br><b>成员标签里的 % 是真题当选率<\/b>；标「常陪跑」表示它在真题里多数/全部当干扰项——语义上虽可搭配，考试中要优先考虑更精准的词。<\/p><\/div>
+  <div class="rankhead">
+    <button class="fbtn" id="gkToggle" type="button" aria-expanded="false">筛选<\/button>
+    <span class="hintmini" id="ghintMini"><\/span>
+  <\/div>
+  <div class="rankfold">
   <div class="toolbar">
     <input type="search" id="gq" class="grpsearch" placeholder="搜词 / 组名（如 相得益彰、传承、困难）">
     <div class="seg" id="gcat"><button data-v="all" class="on">全部<\/button>${cats.map(c=>`<button data-v="${esc(c)}">${esc(c)}<\/button>`).join('')}<\/div>
   <\/div>
   <div class="hint" id="ghint"><\/div>
+  <\/div>
   <details class="gindex"><summary>词组总览（按覆盖词次排序，点一行跳到该组）<\/summary>
     <div class="tablewrap"><table class="gtable"><thead><tr><th>组<\/th><th>成员<\/th><th class="n">词次<\/th><th class="n">题<\/th><\/tr><\/thead>
     <tbody>${(D.groups||[]).map(g=>`<tr data-jump="${esc(g.id)}"><td><b>${esc(g.cat)}<\/b><\/td><td class="gm">${g.members.map(esc).join(' · ')}<\/td><td class="n">${g.weight}<\/td><td class="n">${g.nq}<\/td><\/tr>`).join('')}<\/tbody><\/table><\/div>
@@ -612,6 +670,16 @@ function viewGroups(sel){
       return true;
     });
     $('#ghint').textContent = `共 ${rows.length} 组`;
+    const gk = document.getElementById('gkToggle');
+    if (gk) {
+      let n = 0;
+      if (GC !== 'all') n++;
+      if (GQ) n++;
+      gk.classList.toggle('on', n > 0);
+      gk.textContent = n ? '筛选 ' + n : '筛选';
+      const gm = document.getElementById('ghintMini');
+      if (gm) gm.textContent = '共 ' + rows.length + ' 组' + (GC !== 'all' ? ' · ' + GC : '');
+    }
     const idx = document.querySelector('.gindex');
     if (idx) idx.style.display = (GC === 'all' && !GQ) ? '' : 'none';
     $('#glist').innerHTML = rows.map(g => {
@@ -653,9 +721,16 @@ function viewGroups(sel){
       });
     });
   };
+  const gkBtn = document.getElementById('gkToggle');
+  if (gkBtn) gkBtn.onclick = () => {
+    const open = document.body.classList.toggle('foldopen');
+    gkBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
   $('#gcat').onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
-    GC = b.dataset.v; [...$('#gcat').children].forEach(x=>x.classList.toggle('on', x===b)); render();
+    GC = b.dataset.v; [...$('#gcat').children].forEach(x=>x.classList.toggle('on', x===b));
+    document.body.classList.remove('foldopen');
+    render();
   };
   app.querySelectorAll('[data-jump]').forEach(el => el.onclick = () => {
     const card = app.querySelector(`.grp[data-g="${el.dataset.jump}"]`);
@@ -852,6 +927,14 @@ window.__ZT__ = {"meta":{"generated":"2026-11-08","questions":1782,"questionsMk"
 <script>
 (function(){
   var app = document.getElementById('app');
+  var st = false;
+  window.addEventListener('scroll', function(){
+    if (st) return; st = true;
+    requestAnimationFrame(function(){
+      document.body.classList.toggle('scrolled', window.scrollY > 160);
+      st = false;
+    });
+  }, {passive:true});
   function fail(msg){ app.innerHTML = '<div class="empty">' + msg + '</div>'; }
   function boot(){
     if (!window.startZT) { fail('zt_app.js 没有加载成功。'); return; }
